@@ -1,13 +1,14 @@
 ﻿@page "/fetchdata"
-
-<PageTitle>Weather forecast</PageTitle>
-
+@implements IDisposable
 @using BlazorServer.Data
-@inject WeatherForecastService ForecastService
+@inject WeatherForecastService WeatherForecastService
+@inject PersistentComponentState ApplicationState
+
+<PageTitle>Weather Forecast</PageTitle>
 
 <h1>Weather forecast</h1>
 
-<p>This component demonstrates fetching data from a service.</p>
+<p>This component demonstrates fetching data from the server.</p>
 
 @if (forecasts == null)
 {
@@ -39,10 +40,35 @@ else
 }
 
 @code {
-    private WeatherForecast[]? forecasts;
+    private WeatherForecast[] forecasts = Array.Empty<WeatherForecast>();
+    private PersistingComponentStateSubscription persistingSubscription;
 
     protected override async Task OnInitializedAsync()
     {
-        forecasts = await ForecastService.GetForecastAsync(DateTime.Now);
+        persistingSubscription = 
+            ApplicationState.RegisterOnPersisting(PersistForecasts);
+
+        if (!ApplicationState.TryTakeFromJson<WeatherForecast[]>(
+            "fetchdata", out var restored))
+        {
+            forecasts = 
+                await WeatherForecastService.GetForecastAsync(DateTime.Now);
+        }
+        else
+        {
+            forecasts = restored!;
+        }
+    }
+
+    private Task PersistForecasts()
+    {
+        ApplicationState.PersistAsJson("fetchdata", forecasts);
+
+        return Task.CompletedTask;
+    }
+
+    void IDisposable.Dispose()
+    {
+        persistingSubscription.Dispose();
     }
 }
